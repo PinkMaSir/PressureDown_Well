@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -163,6 +164,29 @@
                     </div>
                 </div>
 
+                <!-- 压力查询工具 -->
+                <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-search text-primary mr-2"></i>
+                        压力查询
+                    </h2>
+                    <div class="flex flex-col md:flex-row gap-3 items-center">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">查询时间 (t), h</label>
+                            <input type="number" id="queryTime" placeholder="请输入时间值" step="0.01" min="0.01"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                            <p class="text-xs text-gray-500 mt-1">请输入大于0的时间值，基于优化拟合曲线计算对应压力</p>
+                        </div>
+                        <button id="queryBtn" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center">
+                            <i class="fa fa-search mr-2"></i>
+                            <span>查询压力</span>
+                        </button>
+                    </div>
+                    <div id="queryResult" class="mt-4 p-3 hidden rounded-lg text-sm">
+                        <!-- 查询结果将在这里显示 -->
+                    </div>
+                </div>
+
                 <!-- 参数对比表格 -->
                 <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
                     <h2 class="text-lg font-semibold mb-4 flex items-center">
@@ -201,8 +225,12 @@
     </footer>
 
     <script>
-        // 全局变量存储图表实例
+        // 全局变量存储图表实例和拟合参数
         let pressureChart = null;
+        let fitParameters = {
+            a_opt: null,  // 优化拟合的系数a
+            b_opt: null   // 优化拟合的系数b
+        };
         
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -211,6 +239,8 @@
             // 绑定数据操作按钮事件
             document.getElementById('addDataBtn').addEventListener('click', addDataPoint);
             document.getElementById('removeDataBtn').addEventListener('click', removeLastDataPoint);
+            // 绑定查询按钮事件
+            document.getElementById('queryBtn').addEventListener('click', queryPressure);
         });
         
         // 添加一个数据点
@@ -266,6 +296,91 @@
             pwfInput.value = pwfData.join(", ");
         }
         
+        // 查询特定时间的井底压力
+        function queryPressure() {
+            // 检查是否已进行分析
+            if (fitParameters.a_opt === null || fitParameters.b_opt === null) {
+                showQueryResult("请先点击'开始分析'按钮进行分析", "orange");
+                return;
+            }
+            
+            // 获取用户输入的时间值
+            const timeInput = document.getElementById('queryTime');
+            const t = parseFloat(timeInput.value);
+            
+            // 验证输入
+            if (isNaN(t) || t <= 0) {
+                showQueryResult("请输入有效的时间值（大于0）", "red");
+                return;
+            }
+            
+            // 使用优化拟合的曲线计算压力值
+            // 公式：pwf = a_opt * ln(t) + b_opt
+            const pressure = fitParameters.a_opt * Math.log(t) + fitParameters.b_opt;
+            
+            // 显示结果
+            showQueryResult(
+                `在时间 t = ${t.toFixed(2)} h 时，预测井底压力为 ${pressure.toFixed(3)} MPa`, 
+                "green"
+            );
+            
+            // 在图表上标记查询点
+            markQueryPointOnChart(t, pressure);
+        }
+        
+        // 在图表上标记查询点
+        function markQueryPointOnChart(t, pressure) {
+            if (!pressureChart) return;
+            
+            // 检查是否已有查询点数据集，如有则更新
+            let queryDatasetIndex = -1;
+            pressureChart.data.datasets.forEach((dataset, index) => {
+                if (dataset.label === "查询点") {
+                    queryDatasetIndex = index;
+                }
+            });
+            
+            // 准备查询点数据
+            const queryPoint = {
+                label: "查询点",
+                data: [{x: t, y: pressure}],
+                backgroundColor: 'rgba(255, 125, 0, 1)',
+                borderColor: 'rgba(255, 125, 0, 1)',
+                borderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointShape: 'star',
+                showLine: false,
+                z: 10  // 确保查询点显示在最上层
+            };
+            
+            // 更新或添加查询点数据集
+            if (queryDatasetIndex !== -1) {
+                pressureChart.data.datasets[queryDatasetIndex] = queryPoint;
+            } else {
+                pressureChart.data.datasets.push(queryPoint);
+            }
+            
+            // 更新图表
+            pressureChart.update();
+        }
+        
+        // 显示查询结果
+        function showQueryResult(message, color) {
+            const resultElement = document.getElementById('queryResult');
+            resultElement.textContent = message;
+            resultElement.classList.remove('hidden', 'bg-green-50', 'text-green-800', 'bg-red-50', 'text-red-800', 'bg-orange-50', 'text-orange-800');
+            
+            // 设置不同状态的样式
+            if (color === "green") {
+                resultElement.classList.add('bg-green-50', 'text-green-800');
+            } else if (color === "red") {
+                resultElement.classList.add('bg-red-50', 'text-red-800');
+            } else if (color === "orange") {
+                resultElement.classList.add('bg-orange-50', 'text-orange-800');
+            }
+        }
+        
         // 执行压力降落分析
         function performAnalysis() {
             // 读取用户输入的参数
@@ -296,6 +411,10 @@
                 opt_idx.map(i => clean_t[i]), 
                 opt_idx.map(i => clean_pwf[i])
             );
+            
+            // 保存拟合参数供查询使用
+            fitParameters.a_opt = a_opt;
+            fitParameters.b_opt = b_opt;
             
             const [K_full, S_full] = calculateParameters(
                 a_full, b_full, m_full, params.pi, params.mu, params.B, 
