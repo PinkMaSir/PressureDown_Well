@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>压力降落试井智能分析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#36CFC9',
+                        accent: '#FF7D00',
+                        neutral: '#F5F7FA',
+                        dark: '#1D2129',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .input-focus {
+                @apply focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-dark font-sans">
+    <!-- 页面头部 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-line-chart text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold text-primary">压力降落试井智能分析</h1>
+            </div>
+            <button id="calculateBtn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center">
+                <i class="fa fa-calculator mr-2"></i>
+                <span>开始分析</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主要内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧参数输入区 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 基础油藏参数卡片 -->
+                <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-cogs text-primary mr-2"></i>
+                        基础油藏参数
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">产量 (Q), m³/d</label>
+                            <input type="number" id="Q" value="39.75" step="0.01" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">体积系数 (B)</label>
+                            <input type="number" id="B" value="1.136" step="0.001" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">粘度 (μ), mPa·s</label>
+                            <input type="number" id="mu" value="0.8" step="0.01" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">井筒半径 (rw), cm</label>
+                            <input type="number" id="rw" value="6" step="0.1" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">油层有效厚度 (h), m</label>
+                            <input type="number" id="h" value="21.03" step="0.01" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">孔隙度 (phi)</label>
+                            <input type="number" id="phi" value="0.039" step="0.001" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">综合压缩系数 (Ct), MPa⁻¹</label>
+                            <input type="number" id="Ct" value="0.0024673" step="0.0000001" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">原始地层压力 (pi), MPa</label>
+                            <input type="number" id="pi" value="30.400" step="0.001" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 压降测试数据卡片 -->
+                <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-database text-primary mr-2"></i>
+                        压降测试数据
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">时间 (t), h</label>
+                        <textarea id="tData" rows="4" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">0.12, 1.94, 2.79, 4.01, 4.82, 5.78, 6.94, 8.32, 9.99, 14.4, 17.3, 20.7, 24.9, 29.8, 35.8, 43.0, 51.5, 61.8, 74.2</textarea>
+                        <p class="text-xs text-gray-500 mt-1">请输入逗号分隔的数值</p>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">井底压力 (pwf), MPa</label>
+                        <textarea id="pwfData" rows="4" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus">25.610, 25.031, 24.956, 24.879, 24.838, 24.804, 24.762, 24.721, 24.687, 24.618, 24.577, 24.535, 24.494, 24.453, 24.418, 23.370, 24.335, 24.294, 24.260</textarea>
+                        <p class="text-xs text-gray-500 mt-1">请输入逗号分隔的数值，与时间数据一一对应</p>
+                    </div>
+                    
+                    <!-- 数据点操作按钮 -->
+                    <div class="flex space-x-2 mt-4">
+                        <button id="addDataBtn" class="flex-1 bg-secondary hover:bg-secondary/90 text-white px-3 py-2 rounded-lg transition-all duration-300 flex items-center justify-center">
+                            <i class="fa fa-plus mr-1"></i>
+                            <span>添加数据点</span>
+                        </button>
+                        <button id="removeDataBtn" class="flex-1 bg-accent hover:bg-accent/90 text-white px-3 py-2 rounded-lg transition-all duration-300 flex items-center justify-center">
+                            <i class="fa fa-minus mr-1"></i>
+                            <span>删除最后点</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧结果展示区 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 图表展示 -->
+                <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-area-chart text-primary mr-2"></i>
+                        压力降落分析曲线
+                    </h2>
+                    <div class="h-[400px]">
+                        <canvas id="pressureChart"></canvas>
+                    </div>
+                    <div id="analysisRationale" class="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                        分析依据：请点击"开始分析"按钮查看结果
+                    </div>
+                </div>
+
+                <!-- 参数对比表格 -->
+                <div class="bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-table text-primary mr-2"></i>
+                        分析结果对比
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">拟合方法</th>
+                                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">渗透率 K (×10⁻³μm²)</th>
+                                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">表皮系数 S</th>
+                                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">斜率 m (MPa/cycle)</th>
+                                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">截距 p₁h (MPa)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTable" class="bg-white divide-y divide-gray-200">
+                                <!-- 结果将通过JavaScript动态填充 -->
+                                <tr>
+                                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">请点击"开始分析"按钮查看结果</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white mt-8 py-6 border-t border-gray-200">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>压力降落试井智能分析工具 &copy; 2023</p>
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量存储图表实例
+        let pressureChart = null;
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定计算按钮事件
+            document.getElementById('calculateBtn').addEventListener('click', performAnalysis);
+            // 绑定数据操作按钮事件
+            document.getElementById('addDataBtn').addEventListener('click', addDataPoint);
+            document.getElementById('removeDataBtn').addEventListener('click', removeLastDataPoint);
+        });
+        
+        // 添加一个数据点
+        function addDataPoint() {
+            const tInput = document.getElementById('tData');
+            const pwfInput = document.getElementById('pwfData');
+            
+            // 获取当前数据
+            const tData = parseInputArray(tInput.value);
+            const pwfData = parseInputArray(pwfInput.value);
+            
+            // 计算新数据点（基于最后一个点的值）
+            let newT, newPwf;
+            if (tData.length > 0 && pwfData.length > 0) {
+                newT = (tData[tData.length - 1] * 1.2).toFixed(2); // 比最后一个时间值大20%
+                newPwf = (pwfData[pwfData.length - 1] - 0.05).toFixed(3); // 比最后一个压力值小0.05
+            } else {
+                newT = "1.00";
+                newPwf = "25.000";
+            }
+            
+            // 添加新数据点
+            if (tData.length === 0) {
+                tInput.value = newT;
+                pwfInput.value = newPwf;
+            } else {
+                tInput.value += ", " + newT;
+                pwfInput.value += ", " + newPwf;
+            }
+        }
+        
+        // 删除最后一个数据点
+        function removeLastDataPoint() {
+            const tInput = document.getElementById('tData');
+            const pwfInput = document.getElementById('pwfData');
+            
+            // 获取当前数据
+            let tData = parseInputArray(tInput.value);
+            let pwfData = parseInputArray(pwfInput.value);
+            
+            // 确保数据不为空
+            if (tData.length <= 1 || pwfData.length <= 1) {
+                alert("至少保留一个数据点");
+                return;
+            }
+            
+            // 删除最后一个数据点
+            tData.pop();
+            pwfData.pop();
+            
+            // 更新输入框
+            tInput.value = tData.join(", ");
+            pwfInput.value = pwfData.join(", ");
+        }
+        
+        // 执行压力降落分析
+        function performAnalysis() {
+            // 读取用户输入的参数
+            const params = {
+                Q: parseFloat(document.getElementById('Q').value),
+                B: parseFloat(document.getElementById('B').value),
+                mu: parseFloat(document.getElementById('mu').value),
+                rw: parseFloat(document.getElementById('rw').value),
+                h: parseFloat(document.getElementById('h').value),
+                phi: parseFloat(document.getElementById('phi').value),
+                Ct: parseFloat(document.getElementById('Ct').value),
+                pi: parseFloat(document.getElementById('pi').value),
+                t: parseInputArray(document.getElementById('tData').value),
+                pwf: parseInputArray(document.getElementById('pwfData').value)
+            };
+            
+            // 验证输入数据
+            if (!validateInput(params)) {
+                return;
+            }
+            
+            // 执行分析步骤
+            const [clean_t, clean_pwf, outliers] = detectOutliers(params.t, params.pwf);
+            const [opt_idx, rationale] = identifyLinearRegion(clean_t, clean_pwf);
+            
+            const [a_full, b_full, m_full] = performRegression(params.t, params.pwf);
+            const [a_opt, b_opt, m_opt] = performRegression(
+                opt_idx.map(i => clean_t[i]), 
+                opt_idx.map(i => clean_pwf[i])
+            );
+            
+            const [K_full, S_full] = calculateParameters(
+                a_full, b_full, m_full, params.pi, params.mu, params.B, 
+                params.Q, params.h, params.phi, params.Ct, params.rw
+            );
+            
+            const [K_opt, S_opt] = calculateParameters(
+                a_opt, b_opt, m_opt, params.pi, params.mu, params.B, 
+                params.Q, params.h, params.phi, params.Ct, params.rw
+            );
+            
+            // 显示结果
+            displayResults(
+                params.t, params.pwf, clean_t, clean_pwf, outliers, opt_idx,
+                a_full, b_full, a_opt, b_opt,
+                K_full, S_full, K_opt, S_opt, rationale
+            );
+        }
+        
+        // 解析输入的数组字符串
+        function parseInputArray(inputStr) {
+            return inputStr.split(',').map(item => parseFloat(item.trim())).filter(num => !isNaN(num));
+        }
+        
+        // 验证输入数据
+        function validateInput(params) {
+            // 检查基本参数是否有效
+            const requiredParams = ['Q', 'B', 'mu', 'rw', 'h', 'phi', 'Ct', 'pi'];
+            for (const param of requiredParams) {
+                if (isNaN(params[param]) || params[param] <= 0) {
+                    alert(`参数 ${param} 输入无效，请检查`);
+                    return false;
+                }
+            }
+            
+            // 检查时间和压力数据
+            if (params.t.length === 0 || params.pwf.length === 0) {
+                alert('请输入时间和压力数据');
+                return false;
+            }
+            
+            if (params.t.length !== params.pwf.length) {
+                alert('时间和压力数据的数量必须一致');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // 异常点检测
+        function detectOutliers(t, pwf) {
+            // 简单的基于标准差的异常点检测
+            const mean = pwf.reduce((sum, val) => sum + val, 0) / pwf.length;
+            const std = Math.sqrt(pwf.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / pwf.length);
+            const threshold = 2 * std; // 2倍标准差作为阈值
+            
+            const outliers = pwf.map(val => Math.abs(val - mean) > threshold);
+            const clean_t = t.filter((_, i) => !outliers[i]);
+            const clean_pwf = pwf.filter((_, i) => !outliers[i]);
+            
+            return [clean_t, clean_pwf, outliers];
+        }
+        
+        // 识别线性区域
+        function identifyLinearRegion(t, pwf) {
+            if (t.length < 5) {
+                return [[...Array(t.length).keys()], '数据点不足，使用全部数据点'];
+            }
+            
+            // 计算导数判断线性段
+            const dlogt = [];
+            const dpwf = [];
+            
+            for (let i = 1; i < t.length; i++) {
+                dlogt.push(Math.log(t[i]) - Math.log(t[i-1]));
+                dpwf.push(pwf[i] - pwf[i-1]);
+            }
+            
+            const derivative = dlogt.map((val, i) => dpwf[i] / val);
+            
+            // 寻找稳定导数区域
+            const maxDeriv = Math.max(...derivative);
+            const stableRegion = derivative.map(val => val > maxDeriv * 0.6 && val < maxDeriv * 1.4);
+            
+            // 找到连续的稳定区域
+            let opt_idx = [];
+            let currentRegion = [];
+            
+            for (let i = 0; i < stableRegion.length; i++) {
+                if (stableRegion[i]) {
+                    currentRegion.push(i);
+                } else {
+                    if (currentRegion.length > opt_idx.length) {
+                        opt_idx = currentRegion;
+                    }
+                    currentRegion = [];
+                }
+            }
+            
+            // 检查最后一个区域
+            if (currentRegion.length > opt_idx.length) {
+                opt_idx = currentRegion;
+            }
+            
+            // 如果找到的区域太小，使用全部数据
+            if (opt_idx.length < 5) {
+                opt_idx = [...Array(t.length - 1).keys()]; // 注意导数比原始数据少一个点
+                return [opt_idx, '使用全部数据点（未检测到明显直线段）'];
+            }
+            
+            // 转换为原始数据索引（导数索引对应原始数据i和i+1之间）
+            // 这里简化处理，直接使用导数索引对应的原始数据点
+            const rationale = `使用${t[opt_idx[0]].toFixed(1)}-${t[opt_idx[opt_idx.length-1] + 1].toFixed(1)}小时数据段`;
+            return [opt_idx, rationale];
+        }
+        
+        // 执行回归分析
+        function performRegression(t, pwf) {
+            // 计算ln(t)
+            const ln_t = t.map(val => Math.log(val));
+            
+            // 线性回归: pwf = a*ln(t) + b
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            const n = ln_t.length;
+            
+            for (let i = 0; i < n; i++) {
+                sumX += ln_t[i];
+                sumY += pwf[i];
+                sumXY += ln_t[i] * pwf[i];
+                sumX2 += ln_t[i] * ln_t[i];
+            }
+            
+            // 计算系数
+            const a = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const b = (sumY - a * sumX) / n;
+            const m = a * 2.302585; // 转换为常用对数斜率
+            
+            return [a, b, m];
+        }
+        
+        // 计算参数（渗透率和表皮系数）
+        function calculateParameters(a, b, m, pi, mu, B, Q, h, phi, Ct, rw) {
+            // 计算渗透率
+            const K = -2.1208 * mu * B * Q / (m * h);
+            
+            // 计算对数项
+            const logTerm = Math.log10(K / (phi * mu * Ct * 1000 * rw * rw));
+            
+            // 计算表皮系数
+            const S = 1.15129 * ((pi - b) / Math.abs(m) - logTerm - 1.9077);
+            
+            return [K, S];
+        }
+        
+        // 显示分析结果
+        function displayResults(t, pwf, clean_t, clean_pwf, outliers, opt_idx,
+                               a_full, b_full, a_opt, b_opt,
+                               K_full, S_full, K_opt, S_opt, rationale) {
+            // 更新分析依据
+            document.getElementById('analysisRationale').textContent = `分析依据：${rationale}`;
+            
+            // 绘制图表
+            plotChart(t, pwf, clean_t, clean_pwf, outliers, opt_idx, a_full, b_full, a_opt, b_opt);
+            
+            // 更新结果表格
+            updateResultsTable(K_full, S_full, a_full, b_full, K_opt, S_opt, a_opt, b_opt);
+        }
+        
+        // 绘制压力降落曲线图表
+        function plotChart(t, pwf, clean_t, clean_pwf, outliers, opt_idx, a_full, b_full, a_opt, b_opt) {
+            // 准备拟合曲线数据
+            const tMin = Math.min(...t);
+            const tMax = Math.max(...t);
+            const tFit = [];
+            
+            // 生成对数空间的拟合点
+            for (let i = 0; i < 100; i++) {
+                const logVal = Math.log10(tMin) + (Math.log10(tMax) - Math.log10(tMin)) * i / 99;
+                tFit.push(Math.pow(10, logVal));
+            }
+            
+            // 计算拟合值
+            const pwfFullFit = tFit.map(val => b_full + a_full * Math.log(val));
+            const pwfOptFit = tFit.map(val => b_opt + a_opt * Math.log(val));
+            
+            // 准备最优拟合段数据
+            const optT = opt_idx.map(i => clean_t[i]);
+            const optPwf = opt_idx.map(i => clean_pwf[i]);
+            
+            // 准备异常点数据
+            const outlierT = [];
+            const outlierPwf = [];
+            for (let i = 0; i < outliers.length; i++) {
+                if (outliers[i]) {
+                    outlierT.push(t[i]);
+                    outlierPwf.push(pwf[i]);
+                }
+            }
+            
+            // 获取图表上下文
+            const ctx = document.getElementById('pressureChart').getContext('2d');
+            
+            // 如果已有图表实例，先销毁
+            if (pressureChart) {
+                pressureChart.destroy();
+            }
+            
+            // 创建新图表
+            pressureChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        // 原始数据
+                        {
+                            label: '原始数据',
+                            data: t.map((val, i) => ({x: val, y: pwf[i]})),
+                            backgroundColor: 'rgba(119, 136, 153, 0.5)',
+                            borderColor: 'rgba(119, 136, 153, 1)',
+                            borderWidth: 1,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            showLine: false
+                        },
+                        // 异常点
+                        {
+                            label: '异常点',
+                            data: outlierT.map((val, i) => ({x: val, y: outlierPwf[i]})),
+                            backgroundColor: 'rgba(255, 0, 0, 1)',
+                            borderColor: 'rgba(255, 0, 0, 1)',
+                            borderWidth: 1,
+                            pointRadius: 5,
+                            pointShape: 'cross',
+                            showLine: false
+                        },
+                        // 有效数据
+                        {
+                            label: '有效数据',
+                            data: clean_t.map((val, i) => ({x: val, y: clean_pwf[i]})),
+                            backgroundColor: 'rgba(0, 0, 255, 1)',
+                            borderColor: 'rgba(0, 0, 255, 1)',
+                            borderWidth: 1,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            showLine: false
+                        },
+                        // 最优拟合段
+                        {
+                            label: '最优拟合段',
+                            data: optT.map((val, i) => ({x: val, y: optPwf[i]})),
+                            backgroundColor: 'rgba(0, 128, 0, 1)',
+                            borderColor: 'rgba(0, 128, 0, 1)',
+                            borderWidth: 1,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            showLine: false
+                        },
+                        // 全点拟合曲线
+                        {
+                            label: `全点拟合: p=${a_full.toFixed(4)}*ln(t)+${b_full.toFixed(4)}`,
+                            data: tFit.map((val, i) => ({x: val, y: pwfFullFit[i]})),
+                            backgroundColor: 'rgba(255, 0, 0, 0)',
+                            borderColor: 'rgba(255, 0, 0, 1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        },
+                        // 优化拟合曲线
+                        {
+                            label: `优化拟合: p=${a_opt.toFixed(4)}*ln(t)+${b_opt.toFixed(4)}`,
+                            data: tFit.map((val, i) => ({x: val, y: pwfOptFit[i]})),
+                            backgroundColor: 'rgba(0, 128, 0, 0)',
+                            borderColor: 'rgba(0, 128, 0, 1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: {
+                                display: true,
+                                text: '时间 t (h)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    // 将横坐标显示为10的幂级数形式
+                                    const exponent = Math.round(Math.log10(value));
+                                    return `10^${exponent}`;
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '井底压力 p_wf (MPa)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: (${context.parsed.x.toFixed(2)}, ${context.parsed.y.toFixed(3)})`;
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            });
+        }
+        
+        // 更新结果表格
+        function updateResultsTable(K_full, S_full, a_full, b_full, K_opt, S_opt, a_opt, b_opt) {
+            const resultsTable = document.getElementById('resultsTable');
+            
+            // 计算斜率（转换为常用对数）
+            const m_full = a_full * 2.302585;
+            const m_opt = a_opt * 2.302585;
+            
+            // 更新表格内容
+            resultsTable.innerHTML = `
+                <tr>
+                    <td class="px-4 py-3 whitespace-nowrap">全点拟合</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${K_full.toFixed(3)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${S_full.toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${m_full.toFixed(4)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${b_full.toFixed(4)}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-3 whitespace-nowrap">优化拟合</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-primary">${K_opt.toFixed(3)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-primary">${S_opt.toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-primary">${m_opt.toFixed(4)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-primary">${b_opt.toFixed(4)}</td>
+                </tr>
+            `;
+        }
+    </script>
+</body>
+</html>
